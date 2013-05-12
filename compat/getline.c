@@ -1,6 +1,6 @@
 /* 
  * dhcpcd - DHCP client daemon
- * Copyright 2006-2008 Roy Marples <roy@marples.name>
+ * Copyright (c) 2006-2009 Roy Marples <roy@marples.name>
  * All rights reserved
 
  * Redistribution and use in source and binary forms, with or without
@@ -25,80 +25,51 @@
  * SUCH DAMAGE.
  */
 
-#include <ctype.h>
-#include <stdarg.h>
-#include <stdio.h>
+#include <errno.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include <syslog.h>
 
-#include "common.h"
-#include "logger.h"
+#include "getline.h"
 
-#ifdef ANDROID
-#include <android/log.h>
-#endif
+/* Redefine a small buffer for our simple text config files */
+#undef BUFSIZ
+#define BUFSIZ 128
 
-static int loglevel = LOG_ERR;
-static char logprefix[12] = {0};
-
-void
-setloglevel(int level)
+ssize_t
+getline(char ** __restrict buf, size_t * __restrict buflen,
+    FILE * __restrict fp)
 {
-	loglevel = level;
-}
-
-void
-setlogprefix(const char *prefix)
-{
-	strlcpy(logprefix, prefix, sizeof(logprefix));
-}
-
-void
-logger(int level, const char *fmt, ...)
-{
-	va_list p, p2;
-	FILE *f = stderr;
-	size_t len, fmt2len;
-	char *fmt2, *pf;
-
-	va_start(p, fmt);
-#ifdef ANDROID
-	if (level <= loglevel) {
-		if (level <= LOG_ERR) {
-			level = ANDROID_LOG_ERROR;
-		} else {
-			level = ANDROID_LOG_DEBUG;
+	size_t bytes, newlen;
+	char *newbuf, *p;
+	
+	if (buf == NULL || buflen == NULL) {
+		errno = EINVAL;
+		return -1;
+	}
+	if (*buf == NULL)
+		*buflen = 0;
+	
+	bytes = 0;
+	do {
+		if (feof(fp))
+			break;
+		if (*buf == NULL || bytes != 0) {
+			newlen = *buflen + BUFSIZ;
+			newbuf = realloc(*buf, newlen);
+			if (newbuf == NULL)
+				return -1;
+			*buf = newbuf;
+			*buflen = newlen;
 		}
-		__android_log_vprint(level, "dhcpcd", fmt, p);
-	}
-#else
-	va_copy(p2, p);
-
-	if (level <= LOG_ERR || level <= loglevel) {
-		fprintf(f, "%s", logprefix);
-		vfprintf(f, fmt, p);
-		fputc('\n', f);
-	}
-
-	if (level < LOG_DEBUG || level <= loglevel) {
-		len = strlen(logprefix);
-		fmt2len = strlen(fmt) + len + 1;
-		fmt2 = pf = malloc(sizeof(char) * fmt2len);
-		if (fmt2) {
-			strlcpy(pf, logprefix, fmt2len);
-			pf += len;
-			strlcpy(pf, fmt, fmt2len - len);
-			vsyslog(level, fmt2, p2);
-			free(fmt2);
-		} else {
-			vsyslog(level, fmt, p2);
-			syslog(LOG_ERR, "logger: memory exhausted");
-			exit(EXIT_FAILURE);
-		}
-	}
-
-	va_end(p2);
-#endif
-	va_end(p);
+		p = *buf + bytes;
+		memset(p, 0, BUFSIZ);
+		if (fgets(p, BUFSIZ, fp) == NULL)
+			break;
+		bytes += strlen(p);
+	} while (bytes == 0 || *(*buf + (bytes - 1)) != '\n');
+	if (bytes == 0)
+		return -1;
+	return bytes;
 }

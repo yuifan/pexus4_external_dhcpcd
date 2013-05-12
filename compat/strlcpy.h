@@ -1,6 +1,6 @@
 /* 
  * dhcpcd - DHCP client daemon
- * Copyright 2006-2008 Roy Marples <roy@marples.name>
+ * Copyright (c) 2006-2009 Roy Marples <roy@marples.name>
  * All rights reserved
 
  * Redistribution and use in source and binary forms, with or without
@@ -25,19 +25,10 @@
  * SUCH DAMAGE.
  */
 
-#ifndef LOGGER_H
-#define LOGGER_H
+#ifndef STRLCPY_H
+#define STRLCPY_H
 
-#if defined(__GNUC__)
-#  define _PRINTF_LIKE(_one, _two)  __attribute__ ((__format__ (__printf__, _one, _two)))
-#else
-#  define _PRINTF_LIKE(_one, _two)
-#endif
+#include <sys/types.h>
 
-#include <syslog.h>
-
-void setloglevel(int);
-void setlogprefix(const char *);
-void logger(int, const char *, ...) _PRINTF_LIKE (2, 3);
-
+size_t strlcpy(char *, const char *, size_t);
 #endif
